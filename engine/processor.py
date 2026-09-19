@@ -6,8 +6,14 @@ import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 from utils.meter import AverageMeter
 from utils.metrics import R1_mAP_eval, R1_mAP
+from utils.modality_weight_logger import ModalityWeightAccumulator, append_modality_weights_csv
 from torch.cuda import amp
 import torch.distributed as dist
+
+
+def _unwrap_model(model):
+    """DistributedDataParallel wraps the real module under .module."""
+    return model.module if hasattr(model, 'module') else model
 
 
 def do_train(cfg,
@@ -48,10 +54,12 @@ def do_train(cfg,
     scaler = amp.GradScaler()
     # train
     best_index = {'mAP': 0, "Rank-1": 0, 'Rank-5': 0, 'Rank-10': 0}
+    aw_csv_path = os.path.join(cfg.OUTPUT_DIR, 'modality_weights.csv')
     for epoch in range(1, epochs + 1):
         start_time = time.time()
         loss_meter.reset()
         acc_meter.reset()
+        train_aw_accum = ModalityWeightAccumulator()
         scheduler.step(epoch)
         model.train()
         for n_iter, (img, vid, target_cam, target_view, img_path, text) in enumerate(train_loader):
@@ -69,6 +77,7 @@ def do_train(cfg,
             with amp.autocast(enabled=True):
                 output = model(image=img, text=text, label=target, cam_label=target_cam, view_label=target_view,
                                writer=writer, epoch=epoch, img_path=img_path)
+                train_aw_accum.update(_unwrap_model(model).last_modality_weights)
                 loss = 0
                 if len(output) % 2 == 1:
                     index = len(output) - 1
@@ -118,6 +127,14 @@ def do_train(cfg,
         else:
             logger.info("Epoch {} done. Time per batch: {:.3f}[s] Speed: {:.1f}[samples/s]"
                         .format(epoch, time_per_batch, train_loader.batch_size / time_per_batch))
+
+        if train_aw_accum.has_data():
+            append_modality_weights_csv(aw_csv_path, epoch, 'train', train_aw_accum)
+            rgb_mean, rgb_std = train_aw_accum.mean_std('rgb')
+            nir_mean, nir_std = train_aw_accum.mean_std('nir')
+            tir_mean, tir_std = train_aw_accum.mean_std('tir')
+            logger.info("Epoch {} modality weights (train) - RGB: {:.2f}+/-{:.2f}, NIR: {:.2f}+/-{:.2f}, "
+                        "TIR: {:.2f}+/-{:.2f}".format(epoch, rgb_mean, rgb_std, nir_mean, nir_std, tir_mean, tir_std))
 
         if epoch % checkpoint_period == 0:
             if cfg.MODEL.DIST_TRAIN:
@@ -181,6 +198,7 @@ def do_inference(cfg,
         model.to(device)
 
     model.eval()
+    test_aw_accum = ModalityWeightAccumulator()
     for n_iter, (img, pid, camid, camids, target_view, imgpath, text) in enumerate(val_loader):
         with torch.no_grad():
             img = {'RGB': img['RGB'].to(device),
@@ -193,10 +211,19 @@ def do_inference(cfg,
             scenceids = target_view
             target_view = target_view.to(device)
             feat = model(image=img, text=text, cam_label=camids, view_label=target_view, img_path=imgpath)
+            test_aw_accum.update(_unwrap_model(model).last_modality_weights)
             if cfg.DATASETS.NAMES == "MSVR310":
                 evaluator.update((feat, pid, camid, scenceids, imgpath))
             else:
                 evaluator.update((feat, pid, camid, imgpath))
+
+    if test_aw_accum.has_data():
+        append_modality_weights_csv(os.path.join(cfg.OUTPUT_DIR, 'modality_weights.csv'), 0, 'test', test_aw_accum)
+        rgb_mean, rgb_std = test_aw_accum.mean_std('rgb')
+        nir_mean, nir_std = test_aw_accum.mean_std('nir')
+        tir_mean, tir_std = test_aw_accum.mean_std('tir')
+        logger.info("Modality weights (test) - RGB: {:.2f}+/-{:.2f}, NIR: {:.2f}+/-{:.2f}, TIR: {:.2f}+/-{:.2f}"
+                    .format(rgb_mean, rgb_std, nir_mean, nir_std, tir_mean, tir_std))
 
     sign = cfg.MODEL.DA
     if sign:
@@ -252,6 +279,7 @@ def training_neat_eval(cfg,
                        evaluator, epoch, logger, return_pattern=1, writer=None):
     evaluator.reset()
     model.eval()
+    val_aw_accum = ModalityWeightAccumulator()
     for n_iter, (img, pid, camid, camids, target_view, imgpath, text) in enumerate(val_loader):
         with torch.no_grad():
             img = {'RGB': img['RGB'].to(device),
@@ -265,10 +293,18 @@ def training_neat_eval(cfg,
             target_view = target_view.to(device)
             feat = model(image=img, text=text, cam_label=camids, view_label=target_view, return_pattern=return_pattern,
                          img_path=imgpath, writer=writer, epoch=epoch)
+            val_aw_accum.update(_unwrap_model(model).last_modality_weights)
             if cfg.DATASETS.NAMES == "MSVR310":
                 evaluator.update((feat, pid, camid, scenceids, imgpath))
             else:
                 evaluator.update((feat, pid, camid, imgpath))
+    if val_aw_accum.has_data():
+        append_modality_weights_csv(os.path.join(cfg.OUTPUT_DIR, 'modality_weights.csv'), epoch, 'val', val_aw_accum)
+        rgb_mean, rgb_std = val_aw_accum.mean_std('rgb')
+        nir_mean, nir_std = val_aw_accum.mean_std('nir')
+        tir_mean, tir_std = val_aw_accum.mean_std('tir')
+        logger.info("Epoch {} modality weights (val) - RGB: {:.2f}+/-{:.2f}, NIR: {:.2f}+/-{:.2f}, "
+                    "TIR: {:.2f}+/-{:.2f}".format(epoch, rgb_mean, rgb_std, nir_mean, nir_std, tir_mean, tir_std))
     logger.info('Current is the combine feature testing!')
     mAP, cmc = compute_log(evaluator=evaluator, logger=logger,
                            query=['V_RGB', 'V_NIR', 'V_TIR', 'T_RGB', 'T_NIR', 'T_TIR'],

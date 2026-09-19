@@ -1,0 +1,55 @@
+# AW-IDEA, Experiment A: lightweight fine-tuning on MSVR310.
+# See configs/RGBNT201/AW_lightweight.yml for the full rationale.
+MODEL:
+  TRANSFORMER_TYPE: 'ViT-B-16'
+  STRIDE_SIZE: [16, 16]
+  DIRECT: 1
+  PREFIX: True
+  TEXT_PROMPT: 1
+  INVERSE: True
+  DA: True
+  DA_SHARE: True
+  OFF_FAC: 25.0
+  FROZEN: True                          # Freeze CLIP text+vision encoder (Experiment A)
+  # NOTE: update this to the IDEAbest.pth produced by a plain IDEA run
+  # (configs/MSVR310/IDEA.yml) on your machine before launching this experiment.
+  PRETRAINED_IDEA: './IDEA_MSVR310/IDEAbest.pth'
+  ADAPTIVE_WEIGHTING:
+    ENABLED: True
+    REDUCTION_RATIO: 8
+    TEMPERATURE: 1.0
+    APPLY_TO_LOCAL: True
+    LOG_WEIGHTS: True
+
+INPUT:
+  SIZE_TRAIN: [128, 256]
+  SIZE_TEST: [128, 256]
+  PROB: 0.5
+  RE_PROB: 0.5
+  PADDING: 10
+
+DATALOADER:
+  SAMPLER: 'softmax_triplet'
+  NUM_INSTANCE: 8
+  NUM_WORKERS: 14
+
+DATASETS:
+  NAMES: ('MSVR310')
+  # NOTE: point this at your own DATA/ directory (see README.md's "Codebase Structure").
+  ROOT_DIR: '/home/buiminhly2303/Desktop/Master/nhandang/IDEA/DATA/'
+
+SOLVER:
+  BASE_LR: 0.0001                       # lower than the from-scratch baseline (0.001): we're fine-tuning, not training from scratch
+  WARMUP_ITERS: 5
+  MAX_EPOCHS: 20                        # task section 11: 10-30 epochs for a fast sanity check
+  OPTIMIZER_NAME: 'Adam'
+  IMS_PER_BATCH: 32
+  EVAL_PERIOD: 2
+  CHECKPOINT_PERIOD: 5
+
+TEST:
+  IMS_PER_BATCH: 128
+  WEIGHT: ''
+  MISS: "nothing"
+
+OUTPUT_DIR: './IDEA_MSVR310_AW_lightweight'

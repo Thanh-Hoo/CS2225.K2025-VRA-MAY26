@@ -1,0 +1,60 @@
+# AW-IDEA, Experiment A: lightweight fine-tuning on RGBNT201.
+# Warm-starts from an existing IDEA checkpoint, freezes the whole CLIP backbone
+# (text + vision encoder), and only trains the new AdaptiveModalityWeighting
+# module plus whatever is already trainable on top of CDA (classifiers/bottlenecks).
+# Goal: a fast (10-30 epoch) hypothesis check, not a full reproduction run.
+# See docs/AW_IDEA.md for how to run this and docs/AW_IDEA_IMPLEMENTATION_PLAN.md
+# section 5 for why MODEL.FROZEN=True is the correct way to freeze CLIP here.
+MODEL:
+  TRANSFORMER_TYPE: 'ViT-B-16'
+  STRIDE_SIZE: [16, 16]
+  DIRECT: 1
+  PREFIX: True
+  TEXT_PROMPT: 2
+  INVERSE: True
+  DA: True
+  DA_SHARE: True
+  OFF_FAC: 5.0
+  FROZEN: True                          # Freeze CLIP text+vision encoder (Experiment A)
+  # NOTE: update this to the IDEAbest.pth produced by a plain IDEA run
+  # (configs/RGBNT201/IDEA.yml) on your machine before launching this experiment.
+  PRETRAINED_IDEA: './IDEA_RGBNT201/IDEAbest.pth'
+  ADAPTIVE_WEIGHTING:
+    ENABLED: True
+    REDUCTION_RATIO: 8
+    TEMPERATURE: 1.0
+    APPLY_TO_LOCAL: True
+    LOG_WEIGHTS: True
+
+INPUT:
+  SIZE_TRAIN: [256, 128]
+  SIZE_TEST: [256, 128]
+  PROB: 0.3
+  RE_PROB: 0.5
+  PADDING: 10
+
+DATALOADER:
+  SAMPLER: 'softmax_triplet'
+  NUM_INSTANCE: 8
+  NUM_WORKERS: 14
+
+DATASETS:
+  NAMES: ('RGBNT201')
+  # NOTE: point this at your own DATA/ directory (see README.md's "Codebase Structure").
+  ROOT_DIR: '/home/buiminhly2303/Desktop/Master/nhandang/IDEA/DATA/'
+
+SOLVER:
+  BASE_LR: 0.0001                       # lower than the from-scratch baseline (0.001): we're fine-tuning, not training from scratch
+  WARMUP_ITERS: 5
+  MAX_EPOCHS: 20                        # task section 11: 10-30 epochs for a fast sanity check
+  OPTIMIZER_NAME: 'Adam'
+  IMS_PER_BATCH: 32
+  EVAL_PERIOD: 1
+  CHECKPOINT_PERIOD: 5
+
+TEST:
+  IMS_PER_BATCH: 4
+  WEIGHT: ''
+  MISS: "nothing"
+
+OUTPUT_DIR: './IDEA_RGBNT201_AW_lightweight'

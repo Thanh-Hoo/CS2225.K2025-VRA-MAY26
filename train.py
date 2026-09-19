@@ -68,6 +68,9 @@ if __name__ == '__main__':
     train_loader, train_loader_normal, val_loader, num_query, num_classes, camera_num, view_num = make_dataloader(cfg)
     print("data is ready")
     model = make_model(cfg, num_class=num_classes, camera_num=camera_num, view_num=view_num)
+    if cfg.MODEL.PRETRAINED_IDEA:
+        logger.info("Warm-starting from MODEL.PRETRAINED_IDEA: {}".format(cfg.MODEL.PRETRAINED_IDEA))
+        model.load_param(cfg.MODEL.PRETRAINED_IDEA)
     if hasattr(model, 'flops'):
         logger.info(str(model))
         n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)

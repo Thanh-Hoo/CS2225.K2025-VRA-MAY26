@@ -9,6 +9,7 @@ from modeling.meta_arch import build_transformer, weights_init_classifier, weigh
 import torch
 from modeling.clip import clip
 from modeling.fusion_part.CDA_Module import CDA
+from modeling.fusion_part.adaptive_modality_weighting import AdaptiveModalityWeighting, select_alpha
 from utils.simple_tokenizer import SimpleTokenizer
 
 
@@ -35,6 +36,20 @@ class IDEA(nn.Module):
         self.q_size = cfg.INPUT.SIZE_TRAIN[0] // 16, cfg.INPUT.SIZE_TRAIN[1] // 16
         self.window_size = self.q_size
         self.stride_block = self.q_size
+
+        # AW-IDEA: Adaptive Modality Weighting, applied to RGB/NIR/TIR local
+        # features right before they enter CDA. See docs/AW_IDEA.md.
+        self.aw_cfg = cfg.MODEL.ADAPTIVE_WEIGHTING
+        self.aw_enabled = self.DA and self.aw_cfg.ENABLED
+        self.last_modality_weights = None
+        if self.aw_enabled:
+            self.adaptive_modality_weighting = AdaptiveModalityWeighting(
+                feat_dim=self.feat_dim,
+                reduction_ratio=self.aw_cfg.REDUCTION_RATIO,
+                temperature=self.aw_cfg.TEMPERATURE,
+            )
+            print('~~~~~~~~~~~~~~~Using Adaptive Modality Weighting (AW-IDEA)~~~~~~~~~~~~~~~')
+
         if self.DA:
             self.CDA = CDA(q_size=self.q_size, window_size=self.q_size, ksize=4,
                                                                stride=2,
@@ -111,6 +126,45 @@ class IDEA(nn.Module):
         print(f"Successfully load ckpt!")
         incompatibleKeys = self.load_state_dict(state_dict, strict=False)
         print(incompatibleKeys)
+        aw_missing = [k for k in incompatibleKeys.missing_keys if 'adaptive_modality_weighting' in k]
+        other_missing = [k for k in incompatibleKeys.missing_keys if 'adaptive_modality_weighting' not in k]
+        if aw_missing:
+            print("Loaded IDEA checkpoint.")
+            print("Adaptive modality weighting initialized with uniform weights.")
+        if other_missing:
+            print(f"WARNING: {len(other_missing)} missing key(s) are NOT part of "
+                  f"AdaptiveModalityWeighting: {other_missing}")
+        if incompatibleKeys.unexpected_keys:
+            print(f"WARNING: {len(incompatibleKeys.unexpected_keys)} unexpected key(s) in checkpoint: "
+                  f"{incompatibleKeys.unexpected_keys}")
+
+    def apply_adaptive_weighting(self, rgb_feas, nir_feas, tir_feas, g_rgb, g_nir, g_tir):
+        """Scale local visual features (F_R, F_N, F_T) by learned per-sample
+        modality coefficients before they are consumed by CDA. No-op (returns
+        inputs unchanged, clears last_modality_weights) unless AW-IDEA is enabled.
+        g_rgb/g_nir/g_tir (the already-computed CLS/global features) are only used
+        as the gate's input and are never themselves modified, so CDA's F_G branch
+        (boss_fea) stays exactly as in the original IDEA.
+        """
+        if not self.aw_enabled:
+            self.last_modality_weights = None
+            return rgb_feas, nir_feas, tir_feas
+        alpha_rgb, alpha_nir, alpha_tir = select_alpha(
+            self.adaptive_modality_weighting, g_rgb, g_nir, g_tir,
+            force_uniform=self.aw_cfg.FORCE_UNIFORM, static_weights=self.aw_cfg.STATIC_WEIGHTS)
+        if self.aw_cfg.LOG_WEIGHTS:
+            self.last_modality_weights = {
+                'rgb': alpha_rgb.detach(),
+                'nir': alpha_nir.detach(),
+                'tir': alpha_tir.detach(),
+            }
+        else:
+            self.last_modality_weights = None
+        if self.aw_cfg.APPLY_TO_LOCAL:
+            rgb_feas = rgb_feas * alpha_rgb.view(-1, 1, 1)
+            nir_feas = nir_feas * alpha_nir.view(-1, 1, 1)
+            tir_feas = tir_feas * alpha_tir.view(-1, 1, 1)
+        return rgb_feas, nir_feas, tir_feas
 
     def flops(self, shape=(3, 256, 128)):
         if self.image_size[0] != shape[1] or self.image_size[1] != shape[2]:
@@ -174,8 +228,11 @@ class IDEA(nn.Module):
                                                                            label=label,
                                                                            view_label=view_label)
             if self.DA:
+                # F_G (boss_fea) is built from the unweighted globals, unchanged from IDEA.
                 boss_fea = torch.stack([RGB_v_global, NI_v_global, TI_v_global, RGB_t_global, NI_t_global, TI_t_global],
                                        dim=1)
+                RGB_v_feas, NI_v_feas, TI_v_feas = self.apply_adaptive_weighting(
+                    RGB_v_feas, NI_v_feas, TI_v_feas, RGB_v_global, NI_v_global, TI_v_global)
                 visual, textual = self.CDA(RGB_v_feas, NI_v_feas, TI_v_feas, boss_fea, writer=writer,
                                                              epoch=epoch,
                                                              img_path=img_path)
@@ -239,8 +296,11 @@ class IDEA(nn.Module):
                                     [RGB_v_global, NI_v_global, TI_v_global, RGB_t_global, NI_t_global, TI_t_global],
                                     dim=-1)}
             if self.DA:
+                # F_G (boss_fea) is built from the unweighted globals, unchanged from IDEA.
                 boss_fea = torch.stack([RGB_v_global, NI_v_global, TI_v_global, RGB_t_global, NI_t_global, TI_t_global],
                                        dim=1)
+                RGB_v_feas, NI_v_feas, TI_v_feas = self.apply_adaptive_weighting(
+                    RGB_v_feas, NI_v_feas, TI_v_feas, RGB_v_global, NI_v_global, TI_v_global)
                 visual, textual = self.CDA(RGB_v_feas, NI_v_feas, TI_v_feas, boss_fea, writer=writer,
                                                              epoch=epoch,
                                                              img_path=img_path, texts=text_real)

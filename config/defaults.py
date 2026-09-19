@@ -44,6 +44,23 @@ _C.MODEL.DA = True  # Whether to use deformable aggregation
 _C.MODEL.DA_SHARE = False  # Whether to share offsets across modalities
 _C.MODEL.OFF_FAC = 5.0  # Offset factor to control offset magnitude
 
+# AW-IDEA: Adaptive Modality Weighting, applied to RGB/NIR/TIR local features
+# right before they enter CDA. No effect on the model when ENABLED is False.
+_C.MODEL.ADAPTIVE_WEIGHTING = CN()
+_C.MODEL.ADAPTIVE_WEIGHTING.ENABLED = False  # Whether to use Adaptive Modality Weighting (AW-IDEA) instead of plain IDEA
+_C.MODEL.ADAPTIVE_WEIGHTING.REDUCTION_RATIO = 8  # Gate hidden_dim = max(feat_dim // REDUCTION_RATIO, 32)
+_C.MODEL.ADAPTIVE_WEIGHTING.TEMPERATURE = 1.0  # Softmax temperature applied to the gate's modality scores
+_C.MODEL.ADAPTIVE_WEIGHTING.APPLY_TO_LOCAL = True  # Apply alpha to the local visual features fed into CDA (only supported mode)
+_C.MODEL.ADAPTIVE_WEIGHTING.LOG_WEIGHTS = True  # Whether to record per-batch alpha stats on model.last_modality_weights
+# Ablation controls (see docs/AW_IDEA.md, "Ablation" section):
+_C.MODEL.ADAPTIVE_WEIGHTING.FORCE_UNIFORM = False  # Ablation B: bypass the learned gate, force alpha=[1,1,1] (isolates the new tensor-multiply code path from the learned weights)
+_C.MODEL.ADAPTIVE_WEIGHTING.STATIC_WEIGHTS = []  # Ablation D (optional): fixed [alpha_rgb, alpha_nir, alpha_tir] instead of a learned gate, e.g. [1.2, 1.2, 0.6]; empty = unused
+
+# Optional warm-start: if set, train.py loads these weights into the model (via
+# IDEA.load_param, strict=False) before training starts. Used by AW-IDEA's
+# lightweight fine-tuning experiment to resume from an existing IDEAbest.pth.
+_C.MODEL.PRETRAINED_IDEA = ""
+
 # ===================== INPUT CONFIGURATION =====================
 _C.INPUT = CN()
 _C.INPUT.SIZE_TRAIN = [256, 128]  # Image size during training

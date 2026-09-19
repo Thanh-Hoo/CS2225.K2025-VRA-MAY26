@@ -1,1 +1,41 @@
+# OS junk
 .DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual envs
+venv/
+.venv/
+env/
+ENV/
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+
+# Datasets, pretrained weights, checkpoints (see README.md "Codebase Structure")
+DATA/
+PTH/
+*.pth
+*.pt
+
+# Training outputs (per-run OUTPUT_DIR, e.g. IDEA_RGBNT201, IDEA_RGBNT201_AW_lightweight, ...)
+/IDEA/
+/IDEA_*/
+runs/
+*.tfevents.*
+modality_weights.csv
+
+# Generated visualizations / reports (keep reports/*.md, ignore generated charts)
+reports/*.png
+vis_results/
+
+# Jupyter
+.ipynb_checkpoints/

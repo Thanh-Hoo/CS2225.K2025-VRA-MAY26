@@ -1,0 +1,52 @@
+# AW-IDEA, Experiment B (optional): full fine-tuning on RGBNT201.
+# Same protocol as configs/RGBNT201/IDEA.yml (trains from scratch, CLIP not frozen,
+# 200 epochs) with Adaptive Modality Weighting turned on. Only run this after
+# Experiment A (AW_lightweight.yml) has passed sanity checks -- task section 11.
+MODEL:
+  TRANSFORMER_TYPE: 'ViT-B-16'
+  STRIDE_SIZE: [16, 16]
+  DIRECT: 1
+  PREFIX: True
+  TEXT_PROMPT: 2
+  INVERSE: True
+  DA: True
+  DA_SHARE: True
+  OFF_FAC: 5.0
+  ADAPTIVE_WEIGHTING:
+    ENABLED: True
+    REDUCTION_RATIO: 8
+    TEMPERATURE: 1.0
+    APPLY_TO_LOCAL: True
+    LOG_WEIGHTS: True
+
+INPUT:
+  SIZE_TRAIN: [256, 128]
+  SIZE_TEST: [256, 128]
+  PROB: 0.3
+  RE_PROB: 0.5
+  PADDING: 10
+
+DATALOADER:
+  SAMPLER: 'softmax_triplet'
+  NUM_INSTANCE: 8
+  NUM_WORKERS: 14
+
+DATASETS:
+  NAMES: ('RGBNT201')
+  # NOTE: point this at your own DATA/ directory (see README.md's "Codebase Structure").
+  ROOT_DIR: '/home/buiminhly2303/Desktop/Master/nhandang/IDEA/DATA/'
+
+SOLVER:
+  BASE_LR: 0.001
+  WARMUP_ITERS: 10
+  MAX_EPOCHS: 200
+  OPTIMIZER_NAME: 'Adam'
+  IMS_PER_BATCH: 32
+  EVAL_PERIOD: 1
+
+TEST:
+  IMS_PER_BATCH: 4
+  WEIGHT: ''
+  MISS: "nothing"
+
+OUTPUT_DIR: './IDEA_RGBNT201_AW_full'
