@@ -1,0 +1,43 @@
+MODEL:
+  TRANSFORMER_TYPE: 'ViT-B-16'          # Type of transformer backbone
+  STRIDE_SIZE: [16, 16]                 # Stride size for ViT or CLIP patch embedding
+  DIRECT: 1                             # Whether to use directly contact features loss supervision
+  PREFIX: True                          # Whether to use modal prefixes in dataloader processing
+  TEXT_PROMPT: 1                        # Number of learnable text prompts in InverseNet
+  INVERSE: True                         # Whether to use the InverseNet in IMFE
+  DA: True                              # Whether to use deformable aggregation
+  DA_SHARE: True                        # Whether to share offsets across modalities
+  OFF_FAC: 25.0                         # Offset factor to control offset magnitude
+
+INPUT:
+  SIZE_TRAIN: [128, 256]                # Image size during training (height, width)
+  SIZE_TEST: [128, 256]                 # Image size during testing (height, width)
+  PROB: 0.5                             # Probability for random horizontal flip
+  RE_PROB: 0.5                          # Probability for random erasing
+  PADDING: 10                           # Padding size for random cropping
+
+DATALOADER:
+  SAMPLER: 'softmax_triplet'            # Sampler type for data loading
+  NUM_INSTANCE: 8                       # Number of instances per batch
+  NUM_WORKERS: 14                       # Number of data loading threads
+
+DATASETS:
+  NAMES: ('MSVR310')                    # Dataset name(s) for training
+  ROOT_DIR: '/home/buiminhly2303/Desktop/Master/nhandang/IDEA/DATA/'                       # Root directory for datasets
+
+SOLVER:
+  BASE_LR: 0.001                      # Base learning rate
+  WARMUP_ITERS: 5                      # Number of warmup iterations
+  MAX_EPOCHS: 200                        # Maximum number of training epochs
+  OPTIMIZER_NAME: 'Adam'                # Optimizer name
+  IMS_PER_BATCH: 32                     # Number of images per batch
+  EVAL_PERIOD: 2                        # Evaluation period (in epochs)
+
+TEST:
+  IMS_PER_BATCH: 128                    # Number of images per batch during testing
+  WEIGHT: ''                            # Path to the trained model weights
+  MISS: "nothing"                       # Modality missing pattern (options: 'nothing', etc.)
+
+OUTPUT_DIR: './IDEA_MSVR310'           # Output directory for checkpoints and logs
+
+
