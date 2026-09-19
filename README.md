@@ -1,141 +1,103 @@
 <p align="center">
 
-  <h1 align="center">IDEA: Inverted Text with Cooperative Deformable Aggregation for Multi-Modal Object Re-Identification</h1>
+  <h1 align="center">AW-IDEA: Adaptive Weighted IDEA</h1>
+  <p align="center">Course-project extension of <strong>IDEA: Inverted Text with Cooperative Deformable Aggregation for Multi-Modal Object Re-Identification</strong> (CVPR 2025)</p>
 
   <p align="center">
-    <img src="assets/LOGO.png" alt="Description of the image" width="400" height="395">
+    <img src="assets/LOGO.png" alt="Description of the image" width="280" height="277">
   <p align="center">
 
-  <p align="center">
-    <a href="https://924973292.github.io/" rel="external nofollow noopener" target="_blank"><strong>Yuhao Wang</strong></a>
-    ·
-    <a href="https://dblp.org/pid/51/3710-66.html" rel="external nofollow noopener" target="_blank"><strong>Yongfeng Lv</strong></a>
-    ·
-    <a href="https://scholar.google.com/citations?user=MfbIbuEAAAAJ&hl=zh-CN" rel="external nofollow noopener" target="_blank"><strong>Pingping Zhang*</strong></a>
-    ·
-    <a href="https://scholar.google.com/citations?user=D3nE0agAAAAJ&hl=zh-CN" rel="external nofollow noopener" target="_blank"><strong>Huchuan Lu</strong></a>
-  </p>
-<p align="center">
-    <a href="https://arxiv.org/pdf/2503.10324" rel="external nofollow noopener" target="_blank">CVPR 2025 Paper</a>
-  <p align="center">
-    <img src="assets/Motivation.png" alt="Description of the image" style="width:100%;">
-  <p align="center">
-<p align="center" style="font-size: 18px; color: gray;">
-    Figure 1: Motivation of IDEA.
-</p>
-<p align="center">
-    <img src="assets/Overall.png" alt="RGBNT201 assets" style="width:100%;">
-</p>
-<p align="center" style="font-size: 18px; color: gray;">
-    Figure 2: Overall Framework of IDEA.
 </p>
 
-## **Abstract** 📝
-**IDEA** 🚀 is a novel multi-modal object Re-Identification (ReID) framework that leverages **inverted text** and **cooperative deformable aggregation** to address the challenges of complex scenarios in multi-modal imaging. By integrating semantic guidance from text annotations and adaptively aggregating discriminative local features, IDEA achieves state-of-the-art performance on multiple benchmarks.
+## Về repo này 📌
 
----
+Repo này được fork từ codebase gốc của paper **IDEA (CVPR 2025)** và giữ nguyên phần lõi của các tác giả (IMFE, InverseNet, CDA, pipeline sinh caption với QwenVL). Phần mình bổ sung cho đồ án môn học là **AW-IDEA (Adaptive Weighted IDEA)**: một module nhỏ, gọn, học trọng số thích ứng theo từng sample cho ba modality RGB/NIR/TIR *trước khi* đưa vào CDA, thay vì coi ba modality có mức ảnh hưởng ngang nhau như bản gốc.
 
+- **Repo gốc:** https://github.com/924973292/IDEA
+- **Paper gốc:** [CVPR 2025 Paper](https://arxiv.org/pdf/2503.10324) — Yuhao Wang, Yongfeng Lv, Pingping Zhang, Huchuan Lu.
+- **Ý tưởng & kiến trúc AW-IDEA:** [docs/AW_IDEA.md](docs/AW_IDEA.md) (motivation, công thức, config, cách train/eval, ablation).
+- **Map chi tiết ý tưởng → code thật (file/class/function cụ thể):** [docs/AW_IDEA_IMPLEMENTATION_PLAN.md](docs/AW_IDEA_IMPLEMENTATION_PLAN.md).
+- **Kết quả thực nghiệm (baseline IDEA đã reproduce trên máy nhóm):** [TEST_RESULTS.md](TEST_RESULTS.md).
+- **Kết quả AW-IDEA (điền sau khi train thật):** [reports/aw_idea_analysis.md](reports/aw_idea_analysis.md).
 
-## News 📢
-- We released the **IDEA** codebase!
-- Great news! Our paper has been accepted to **CVPR 2025**! 🏆
+Phần còn lại của README này giữ nguyên nội dung gốc của tác giả (Abstract, Introduction, Contributions, Quick Start) để tiện tham khảo và tái lập baseline.
 
 ---
 
 ## Table of Contents 📑
-- [Introduction](#introduction)
-- [Contributions](#contributions)
-- [Experimental Results](#experimental-results)
-- [Visualizations](#visualizations)
-- [Reproduction](#reproduction)
-- [Citation](#citation)
+- [Về repo này (đồ án)](#về-repo-này-)
+- [Abstract](#abstract-)
+- [Introduction](#introduction-)
+- [Contributions](#contributions-)
+- [AW-IDEA — Đóng góp của đồ án](#aw-idea--đóng-góp-của-đồ-án-)
+- [Reproduction](#quick-start-)
+- [Citation](#citation-)
+
+---
+
+## **Abstract** 📝
+**IDEA** 🚀 là một framework multi-modal object Re-Identification (ReID) mới, tận dụng **inverted text** và **cooperative deformable aggregation** để giải quyết các bài toán trong ảnh đa phổ phức tạp. Bằng cách tích hợp semantic guidance từ text annotation và tổng hợp thích ứng các đặc trưng cục bộ phân biệt, IDEA đạt kết quả SOTA trên nhiều benchmark.
 
 ---
 
 ## **Introduction** 🌟
 
-Multi-modal object Re-IDentification (ReID) aims to retrieve specific objects by utilizing complementary information from various modalities. However, existing methods often focus solely on fusing visual features while neglecting the potential benefits of **text-based semantic information**. 
+Multi-modal object Re-IDentification (ReID) nhằm truy vấn lại đối tượng cụ thể bằng cách tận dụng thông tin bổ trợ từ nhiều modality. Tuy nhiên, các phương pháp hiện có thường chỉ tập trung fusing đặc trưng thị giác mà bỏ qua lợi ích tiềm năng của **thông tin ngữ nghĩa dựa trên văn bản**.
 
-To address this issue, we propose **IDEA**, a novel feature learning framework comprising:
-1. **Inverted Multi-modal Feature Extractor (IMFE)**: Integrates multi-modal features using Modal Prefixes and an InverseNet.
-2. **Cooperative Deformable Aggregation (CDA)**: Adaptively aggregates discriminative local information by generating sampling positions.
+Để giải quyết vấn đề này, các tác giả đề xuất **IDEA**, một framework học đặc trưng gồm:
+1. **Inverted Multi-modal Feature Extractor (IMFE)**: tích hợp đặc trưng đa modal bằng Modal Prefixes và InverseNet.
+2. **Cooperative Deformable Aggregation (CDA)**: tổng hợp thích ứng thông tin cục bộ phân biệt bằng cách sinh ra các vị trí lấy mẫu.
 
-Additionally, we construct three **text-enhanced multi-modal object ReID benchmarks** using a standardized pipeline for structured and concise text annotations with Multi-modal Large Language Models (MLLMs). 📝
+Ngoài ra, nhóm tác giả xây dựng ba **benchmark multi-modal object ReID có tăng cường văn bản** dùng pipeline chuẩn hóa để sinh caption bằng Multi-modal Large Language Models (MLLMs). 📝
+
+<p align="center">
+    <img src="assets/Overall.png" alt="Overall framework of IDEA" style="width:100%;">
+</p>
+<p align="center" style="font-size: 14px; color: gray;">
+    Overall framework của IDEA gốc — phần baseline mà AW-IDEA mở rộng thêm.
+</p>
 
 ---
 
 ## **Contributions** ✨
 
-- Constructed three **text-enhanced multi-modal object ReID benchmarks**, providing a structured caption generation pipeline across multiple spectral modalities.
-- Introduced **IDEA**, a novel feature learning framework with two key components:
-  - **IMFE**: Integrates multi-modal features using Modal Prefixes and an InverseNet.
-  - **CDA**: Adaptively aggregates discriminative local information.
-- Validated the effectiveness of our approach through extensive experiments on three benchmark datasets.
+- Xây dựng ba **benchmark multi-modal object ReID có tăng cường văn bản**, cung cấp pipeline sinh caption có cấu trúc trên nhiều modality phổ khác nhau.
+- Đề xuất **IDEA**, framework học đặc trưng với hai thành phần chính:
+  - **IMFE**: tích hợp đặc trưng đa modal bằng Modal Prefixes và InverseNet.
+  - **CDA**: tổng hợp thích ứng thông tin cục bộ phân biệt.
+- Kiểm chứng hiệu quả qua thực nghiệm mở rộng trên ba bộ dữ liệu benchmark.
 
 ---
 
-## **Quick View** 📊
-### Dataset Examples
-#### Overview of Annotations 
-<p align="center">
-    <img src="assets/DatasetExample.png" alt="Dataset Overview" style="width:100%;">
-</p>
+## **AW-IDEA — Đóng góp của đồ án** 🧩
 
-#### Multi-modal Person ReID Annotations Example
-<p align="center">
-    <img src="assets/PersonAnnoExp.png" alt="Person ReID Annotations" style="width:100%;">
-</p>
+**Giả thuyết:** RGB, NIR và TIR không đóng góp đồng đều cho mọi sample. Thay vì đưa cả ba modality vào CDA với mức ảnh hưởng ngang nhau như IDEA gốc, model nên tự học một trọng số theo từng sample cho từng modality *trước khi* CDA thực hiện cooperative deformable aggregation.
 
-#### Multi-modal Vehicle ReID Annotations Example
-<p align="center">
-    <img src="assets/VehicelAnnoExp.png" alt="Vehicle ReID Annotations" style="width:100%;">
-</p>
+**Cách làm (tối giản, không thiết kế lại IDEA):** chèn một module nhỏ — `AdaptiveModalityWeighting` — ngay trước điểm CDA nhận ba local feature map của RGB/NIR/TIR:
 
-### Experimental Results
-#### Multi-Modal Person ReID 
-<p align="center">
-  <img src="assets/RGBNT201_Exp.png" alt="RGBNT201 assets" style="width:100%;">
-</p>
+```
+F_R, F_N, F_T  (đặc trưng cục bộ, không đổi từ CLIP backbone)
+   │
+   ▼
+AdaptiveModalityWeighting(g_R, g_N, g_T) → alpha_R, alpha_N, alpha_T
+   │
+   ▼
+F_R·alpha_R, F_N·alpha_N, F_T·alpha_T
+   │
+   ▼
+CDA(...)  ← không đổi so với IDEA gốc
+```
 
-#### Multi-Modal Vehicle ReID 
-<p align="center">
-    <img src="assets/RGBNT100_Exp.png" alt="RGBNT100 assets" style="width:100%;">
-</p>
+`g_R, g_N, g_T` tái sử dụng chính global/CLS feature mà IDEA đã tính sẵn — không thêm logic trích xuất mới. Nhánh global (`F_G`) đưa vào CDA vẫn giữ nguyên, không bị weighting tác động — chỉ local feature bị scale.
 
-### Parameter Analysis
-<p align="center">
-    <img src="assets/ParamsCom.png" alt="Params" style="width:100%;">
-</p>
+Điểm chính:
+- `alpha_m = 3 · softmax(Gate(g_m) / τ)`, nên `alpha_R + alpha_N + alpha_T = 3`.
+- Linear layer cuối của gate khởi tạo weight=0, bias=0 → lúc bắt đầu train, `alpha = [1, 1, 1]`, AW-IDEA gần như tương đương IDEA gốc và chỉ lệch dần khi gate học được gì đó.
+- Bật/tắt hoàn toàn qua config `MODEL.ADAPTIVE_WEIGHTING.ENABLED` (mặc định `False` — không đổi hành vi IDEA gốc).
+- Có sẵn 3 ablation mode (baseline / uniform / learned) để cô lập tác động thật của phần "adaptive".
+- Overhead tham số: **33,921 params** (~0.037% so với baseline 91.67M params) — rất nhẹ.
 
----
-
-## **Visualizations** 🖼️
-
-### Offsets Visualization
-<p align="center">
-    <img src="assets/Offset.png" alt="Offsets" style="width:100%;">
-</p>
-
-### Cosine Similarity Visualization
-<p align="center">
-    <img src="assets/CosDis.png" alt="Cosine Similarity" style="width:100%;">
-</p>
-
-### Semantic Guidance Visualization
-<p align="center">
-    <img src="assets/SemanticGuidance.png" alt="Semantic Guidance" style="width:100%;">
-</p>
-
-### Rank-list Visualization
-#### Multi-modal Person ReID 
-<p align="center">
-    <img src="assets/PersonRank.png" alt="Rank-list" style="width:100%;">
-</p>
-
-#### Multi-modal Vehicle ReID 
-<p align="center">
-    <img src="assets/VehicleRank.png" alt="Rank-list" style="width:100%;">
-</p>
+Chi tiết công thức, config đầy đủ, lệnh train/eval, và bảng ablation nằm ở **[docs/AW_IDEA.md](docs/AW_IDEA.md)**.
 
 ---
 
@@ -164,6 +126,7 @@ IDEA_Codes
 │   └── MSVR310                   # MSVR310 dataset
 ├── assets                        # Github assets
 ├── config                        # Configuration files
+├── docs                          # AW-IDEA docs (motivation, plan, ablation)
 ├── QwenVL_Anno                   # **YOU SHOULD PUT YOUR ANNOTATIONS TO THE DATA FOLDER**
 └── ...                           # Other project files
 ```
@@ -172,11 +135,11 @@ IDEA_Codes
 - **CLIP**: [Baidu Pan](https://pan.baidu.com/s/1YPhaL0YgpI-TQ_pSzXHRKw) (Code: `52fu`)
 
 ### Configuration
-- RGBNT201: `configs/RGBNT201/IDEA.yml`  
-- RGBNT100: `configs/RGBNT100/IDEA.yml`  
-- MSVR310: `configs/MSVR310/IDEA.yml`
+- RGBNT201 baseline: `configs/RGBNT201/IDEA.yml` — AW-IDEA: `configs/RGBNT201/AW_lightweight.yml`, `configs/RGBNT201/AW_full_finetune.yml`
+- RGBNT100 baseline: `configs/RGBNT100/IDEA.yml`
+- MSVR310 baseline: `configs/MSVR310/IDEA.yml` — AW-IDEA: `configs/MSVR310/AW_lightweight.yml`, `configs/MSVR310/AW_full_finetune.yml`
 
-### Training
+### Training (baseline IDEA)
 ```bash
 conda create -n IDEA python=3.10.13
 conda activate IDEA
@@ -187,26 +150,23 @@ pip install -r requirements.txt
 python train.py --config_file ./configs/RGBNT201/IDEA.yml
 ```
 
-### Training Example
+### Training AW-IDEA
+Xem hướng dẫn đầy đủ (warm-start từ checkpoint IDEA cũ, freeze CLIP, ablation) tại **[docs/AW_IDEA.md](docs/AW_IDEA.md)**:
+```bash
+python train.py --config_file configs/RGBNT201/AW_lightweight.yml
+python tools/report_param_overhead.py --config_file configs/RGBNT201/IDEA.yml
+python tools/visualize_modality_weights.py --config_file configs/RGBNT201/AW_lightweight.yml --weight <checkpoint>.pth
+```
+
+### Training Example (baseline IDEA, từ tác giả gốc)
 - **RGBNT201**: [LOGFILE](./assets/train_log.txt) / [WEIGHT](https://pan.baidu.com/s/1t2j9yoVvGp6t0CepxUGpRA)
 - **CODE**: g6om
-
-## **Poster** 📜
-<p align="center">
-    <img src="assets/Poster.png" alt="Poster" style="width:100%;">
-</p>
-
----
-
-## Star History 🌟
-
-[![Star History Chart](https://api.star-history.com/svg?repos=924973292/IDEA&type=Date)](https://star-history.com/#924973292/IDEA&Date)
 
 ---
 
 ## **Citation** 📚
 
-If you find **IDEA** helpful in your research, please consider citing:
+Nếu bạn dùng **IDEA**, vui lòng cite paper gốc:
 ```bibtex
 @inproceedings{wang2025idea,
   title={IDEA: Inverted Text with Cooperative Deformable Aggregation for Multi-Modal Object Re-Identification},
@@ -215,5 +175,7 @@ If you find **IDEA** helpful in your research, please consider citing:
   year={2025}
 }
 ```
+
+Phần mở rộng AW-IDEA trong repo này là sản phẩm của đồ án môn học, xây dựng trên codebase gốc ở trên — không phải công bố học thuật độc lập.
 
 ---
